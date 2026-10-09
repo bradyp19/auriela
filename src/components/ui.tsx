@@ -1,0 +1,8 @@
+'use client';
+import * as Dialog from '@radix-ui/react-dialog';
+import { X, ArrowUpRight } from 'lucide-react';
+import { useEffect, useRef, type ReactNode } from 'react';
+export function Modal({title,description,open,onClose,children,wide=false}:{title:string;description?:string;open:boolean;onClose:()=>void;children:ReactNode;wide?:boolean}){const opener=useRef<HTMLElement|null>(null);useEffect(()=>{if(open)opener.current=document.activeElement as HTMLElement;},[open]);return <Dialog.Root open={open} onOpenChange={v=>!v&&onClose()}><Dialog.Portal><Dialog.Overlay className="modal-overlay"/><Dialog.Content className={`modal ${wide?'modal-wide':''}`} onCloseAutoFocus={event=>{event.preventDefault();const target=opener.current?.isConnected?opener.current:document.querySelector<HTMLElement>('[data-return-focus]');target?.focus();}}><div className="modal-heading"><div><Dialog.Title>{title}</Dialog.Title><Dialog.Description>{description||'Manage your local demo travel plans.'}</Dialog.Description></div><Dialog.Close className="icon-button" aria-label="Close dialog"><X size={20}/></Dialog.Close></div>{children}</Dialog.Content></Dialog.Portal></Dialog.Root>;}
+export function Empty({title,children,action}:{title:string;children:ReactNode;action?:ReactNode}){return <div className="empty"><span className="empty-symbol">↗</span><h2>{title}</h2><p>{children}</p>{action}</div>;}
+export function SectionHeading({eyebrow,title,children}:{eyebrow:string;title:string;children?:ReactNode}){return <div className="section-heading"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1></div>{children}</div>;}
+export function Arrow(){return <ArrowUpRight size={17} aria-hidden="true"/>;}
