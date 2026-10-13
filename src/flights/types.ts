@@ -65,7 +65,13 @@ export type SupplierOutcome =
     };
 export type FlightAction =
   | { type: "request"; request: FlightRequest; scenario?: FixtureScenario }
-  | { type: "approve"; journeyId: string; offerId: string; accepted: true }
+  | {
+      type: "approve";
+      journeyId: string;
+      offerId: string;
+      offerRevision: string;
+      accepted: true;
+    }
   | { type: "checkout"; journeyId: string }
   | { type: "verify"; journeyId: string }
   | { type: "reminder"; journeyId: string; enabled: false }
@@ -91,7 +97,12 @@ export interface FlightJourney {
   mode: FlightMode;
   status: FlightJourneyStatus;
   offer: FlightOffer | null;
-  approval: { offerId: string; approvedAt: string } | null;
+  offerRevision: string | null;
+  approval: {
+    offerId: string;
+    offerRevision: string;
+    approvedAt: string;
+  } | null;
   attempt: {
     id: string;
     status:

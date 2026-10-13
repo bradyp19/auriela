@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'node:crypto';
+import { FlightRepository } from '@/flights/repository';
+import { FlightService } from '@/flights/service';
+import { createFixtureSupplier } from '@/flights/fixture';
 
 const http = await import('@/flights/http').catch(() => null);
 const origin = 'http://localhost:3000';
@@ -18,6 +21,27 @@ function post(body: string, headers: Record<string, string> = {}) {
   });
 }
 describe('flight HTTP trust boundary', () => {
+  it.each(['http://localhost:3000', 'http://127.0.0.1:3000'])('persists the real service journey at %s and prevents another browser from approving it', async (site) => {
+    expect(http).not.toBeNull();
+    const now = () => new Date('2026-10-13T16:00:00Z');
+    const repo = new FlightRepository(':memory:');
+    try {
+      const service = new FlightService(repo, (scenario) => createFixtureSupplier({ scenario, now }), now);
+      const routes = http!.createFlightHandlers(service, (id) => repo.load(id) !== null);
+      const send = (action: unknown, cookie = '') => routes.POST(new NextRequest(`${site}/api/flights`, { method: 'POST', body: JSON.stringify(action), headers: { origin: site, host: new URL(site).host, 'content-type': 'application/json', cookie } }));
+      const search = await send({ type: 'request', request: { origin: 'JFK', destination: 'LAX', departureDate: '2026-10-27', adults: 1, cabin: 'economy' } });
+      expect(search.status).toBe(200);
+      const { journey } = await search.json();
+      const cookie = search.headers.get('set-cookie')!.split(';')[0];
+      const approval = { type: 'approve', journeyId: journey.id, offerId: journey.offer.id, offerRevision: journey.offerRevision, accepted: true };
+      const intruder = await send(approval);
+      expect(intruder.status).toBe(404);
+      expect(JSON.stringify(await intruder.json())).not.toContain(journey.offer.id);
+      const own = await send(approval, cookie);
+      expect(own.status).toBe(200);
+      expect((await own.json()).journey.status).toBe('approved');
+    } finally { repo.close(); }
+  });
   it('issues a private no-store session cookie rather than trusting a forged cookie', async () => {
     const forged = randomUUID();
     const response = await handlers().GET(new NextRequest(`${origin}/api/flights`, { headers: { cookie: `aurelia-flight-session=${forged}` } }));
@@ -54,7 +78,9 @@ describe('flight HTTP trust boundary', () => {
       { type: 'checkout', journeyId: 'j', total: 1 },
       { type: 'verify', journeyId: 'j', status: 'verified_complete' },
       { type: 'verify', journeyId: 'j', sessionId: 'victim' },
-      { type: 'approve', journeyId: 'j', offerId: 'o', accepted: false },
+      { type: 'approve', journeyId: 'j', offerId: 'o', offerRevision: 'r', accepted: false },
+      { type: 'approve', journeyId: 'j', offerId: 'o', accepted: true },
+      { type: 'approve', journeyId: 'j', offerId: 'o', offerRevision: false, accepted: true },
     ]) expect((await handlers().POST(post(JSON.stringify(action)))).status).toBe(400);
   });
   it('redacts unexpected server failures and returns a retryable error', async () => {

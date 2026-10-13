@@ -232,6 +232,7 @@ describe("strict flight action contracts", () => {
         type: "approve",
         journeyId: "journey-1",
         offerId: "offer-1",
+        offerRevision: "revision-1",
         accepted: true,
       }),
     ).toBe(true);
@@ -252,6 +253,28 @@ describe("strict flight action contracts", () => {
   it.each([
     { type: "approve", journeyId: "j", offerId: "o" },
     { type: "approve", journeyId: "j", offerId: "o", accepted: false },
+    { type: "approve", journeyId: "j", offerId: "o", accepted: true },
+    {
+      type: "approve",
+      journeyId: "j",
+      offerId: "o",
+      offerRevision: false,
+      accepted: true,
+    },
+    {
+      type: "approve",
+      journeyId: "j",
+      offerId: "o",
+      offerRevision: "",
+      accepted: true,
+    },
+    {
+      type: "approve",
+      journeyId: "j",
+      offerId: "o",
+      offerRevision: "r",
+      accepted: false,
+    },
     { type: "checkout", journeyId: "j", total: 1 },
     { type: "verify", journeyId: "j", status: "verified_complete" },
     { type: "reminder", journeyId: "j", enabled: true, leadMinutes: 120 },

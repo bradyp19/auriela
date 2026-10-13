@@ -38,7 +38,10 @@ async function readAction(request: NextRequest): Promise<FlightAction> {
 export function createFlightHandlers(service: JourneyService, sessionExists: (id: string) => boolean) {
   async function handle(request: NextRequest, mutate: boolean) {
     try {
-      if (mutate && request.headers.get('origin') !== request.nextUrl.origin) throw new FlightError('Use this app to update your flight journey.', 403);
+      // NextURL normalizes loopback hosts; the Host header preserves the browser's actual origin.
+      const host = request.headers.get('host');
+      const expectedOrigin = host ? new URL(`${request.nextUrl.protocol}//${host}`).origin : request.nextUrl.origin;
+      if (mutate && request.headers.get('origin') !== expectedOrigin) throw new FlightError('Use this app to update your flight journey.', 403);
       if (mutate && request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') throw new FlightError('Send JSON.', 415);
       const action = mutate ? await readAction(request) : null;
       const supplied = request.cookies.get(cookieName)?.value;

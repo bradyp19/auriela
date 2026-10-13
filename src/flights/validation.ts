@@ -283,6 +283,7 @@ export const flightActionSchema = z.union([
       type: z.literal("approve"),
       journeyId: identifier,
       offerId: identifier,
+      offerRevision: identifier,
       accepted: z.literal(true),
     }),
     z.strictObject({ type: z.literal("checkout"), journeyId: identifier }),

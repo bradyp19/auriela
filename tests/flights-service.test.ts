@@ -65,6 +65,7 @@ async function approved(
     type: "approve",
     journeyId: journey.id,
     offerId: journey.offer!.id,
+    offerRevision: journey.offerRevision!,
     accepted: true,
   });
 }
@@ -119,6 +120,7 @@ describe("durable flight approval", () => {
         type: "approve",
         journeyId: changed.id,
         offerId: changed.offer!.id,
+        offerRevision: changed.offerRevision!,
         accepted: true,
       });
       expect(
@@ -194,6 +196,7 @@ describe("durable flight approval", () => {
         type: "approve",
         journeyId: first.id,
         offerId: first.offer!.id,
+        offerRevision: first.offerRevision!,
         accepted: true,
       },
       { type: "reminder", journeyId: first.id, enabled: false },
@@ -204,6 +207,7 @@ describe("durable flight approval", () => {
         type: "approve",
         journeyId: first.id,
         offerId: "forged",
+        offerRevision: first.offerRevision!,
         accepted: true,
       }),
     ).rejects.toThrow();
@@ -535,4 +539,181 @@ describe("supplier validation and opted-in reminders", () => {
       first!.messages.length,
     );
   });
+});
+
+describe("approval revision and booking retention regressions", () => {
+  it.each(["price", "segments", "baggage", "terms", "expired-price"] as const)(
+    "rejects stale same-ID approval after changed %s",
+    async (field) => {
+      const { service } = setup((supplier) => ({
+        ...supplier,
+        async refresh(offer) {
+          return {
+            mode: "fixture",
+            label: offer.label,
+            status: "available",
+            offer: {
+              ...offer,
+              ...(field === "price" || field === "expired-price"
+                ? {
+                    price: {
+                      ...offer.price,
+                      base: offer.price.base + 10000,
+                      total: offer.price.total + 10000,
+                    },
+                  }
+                : {}),
+              ...(field === "expired-price"
+                ? { expiresAt: "2026-10-13T15:00:00.000Z" }
+                : {}),
+              ...(field === "segments"
+                ? {
+                    outbound: [{ ...offer.outbound[0], flightNumber: "FX999" }],
+                  }
+                : {}),
+              ...(field === "baggage"
+                ? { baggage: "No checked bag included" }
+                : {}),
+              ...(field === "terms"
+                ? {
+                    terms: {
+                      ...offer.terms,
+                      cancellation: "No cancellation permitted",
+                    },
+                  }
+                : {}),
+            },
+          };
+        },
+      }));
+      const old = await approved(service);
+      const changed = await service.act("session-a", {
+        type: "checkout",
+        journeyId: old.id,
+      });
+      expect(changed.offer!.id).toBe(old.offer!.id);
+      expect(changed.status).toBe(
+        field === "expired-price" ? "unavailable" : "review",
+      );
+      expect(changed.offerRevision).not.toBe(old.offerRevision);
+      await expect(
+        service.act("session-a", {
+          type: "approve",
+          journeyId: old.id,
+          offerId: old.offer!.id,
+          offerRevision: old.offerRevision!,
+          accepted: true,
+        }),
+      ).rejects.toThrow(/review/i);
+      expect((await service.get("session-a"))!.approval).toBeNull();
+      if (field !== "expired-price") {
+        const fresh = await service.act("session-a", {
+          type: "approve",
+          journeyId: changed.id,
+          offerId: changed.offer!.id,
+          offerRevision: changed.offerRevision!,
+          accepted: true,
+        });
+        expect(fresh.approval!.offerRevision).toBe(changed.offerRevision);
+        expect(
+          (
+            await service.act("session-a", {
+              type: "checkout",
+              journeyId: changed.id,
+            })
+          ).status,
+        ).toBe(field === "price" ? "review" : "simulated_complete");
+      }
+    },
+  );
+  it("retains completed booking and delivers its accepted reminder once after rejected search and restart", async () => {
+    const test = setup();
+    const journey = await approved(test.service);
+    await test.service.act("session-a", {
+      type: "checkout",
+      journeyId: journey.id,
+    });
+    const enabled = await test.service.act("session-a", {
+      type: "reminder",
+      journeyId: journey.id,
+      enabled: true,
+      leadMinutes: 120,
+      fallbackAccepted: true,
+    });
+    await expect(
+      test.service.act("session-a", { type: "request", request }),
+    ).rejects.toThrow();
+    expect(await test.service.get("session-a")).toEqual(enabled);
+    test.repository.close();
+    const restored = test.open().service;
+    test.setTime("2026-10-14T08:00:00Z");
+    const delivered = (await restored.get("session-a"))!;
+    expect(delivered.attempt).toEqual(enabled.attempt);
+    expect(delivered.offer).toEqual(enabled.offer);
+    expect(delivered.approval).toEqual(enabled.approval);
+    expect(delivered.messages.slice(0, -1)).toEqual(enabled.messages);
+    expect(delivered.reminder!.deliveredAt).toBe("2026-10-14T08:00:00.000Z");
+    expect((await test.open().service.get("session-a"))!.messages).toHaveLength(
+      enabled.messages.length + 1,
+    );
+  });
+});
+
+it("requires fresh review for legacy unattempted approval without a revision", async () => {
+  const test = setup();
+  const old = await approved(test.service);
+  test.repository.update("session-a", (current) => {
+    delete (current as unknown as Record<string, unknown>).offerRevision;
+    delete (current!.approval as unknown as Record<string, unknown>)
+      .offerRevision;
+    return current;
+  });
+  test.repository.close();
+  const service = test.open().service;
+  await expect(
+    service.act("session-a", { type: "checkout", journeyId: old.id }),
+  ).rejects.toThrow(/approv/i);
+  const current = (await service.get("session-a"))!;
+  expect(current.status).toBe("review");
+  expect(current.approval).toBeNull();
+});
+
+it("rejects missing, false and forged revisions at the service boundary", async () => {
+  const { service } = setup();
+  const journey = await service.act("session-a", { type: "request", request });
+  for (const offerRevision of [undefined, false, "forged"]) {
+    await expect(
+      service.act("session-a", {
+        type: "approve",
+        journeyId: journey.id,
+        offerId: journey.offer!.id,
+        offerRevision,
+        accepted: true,
+      } as never),
+    ).rejects.toThrow();
+  }
+  expect((await service.get("session-a"))!.approval).toBeNull();
+});
+it("retains terminal failed attempts when another search is requested", async () => {
+  const { service } = setup((supplier) => ({
+    ...supplier,
+    async checkout() {
+      return {
+        mode: "fixture",
+        status: "failed",
+        label: "Fixture",
+        message: "Failed",
+      };
+    },
+  }));
+  const journey = await approved(service);
+  const failed = await service.act("session-a", {
+    type: "checkout",
+    journeyId: journey.id,
+  });
+  expect(failed.status).toBe("failed");
+  await expect(
+    service.act("session-a", { type: "request", request }),
+  ).rejects.toThrow();
+  expect(await service.get("session-a")).toEqual(failed);
 });

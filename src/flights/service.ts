@@ -119,7 +119,19 @@ export class FlightService {
 
   async get(sessionId: string): Promise<FlightJourney | null> {
     return this.repository.update(sessionId, (journey) => {
-      if (journey) this.deliverReminder(journey);
+      if (journey) {
+        if (
+          journey.offerRevision === undefined ||
+          (journey.offer && !journey.offerRevision)
+        ) {
+          journey.offerRevision = journey.offer ? randomUUID() : null;
+          if (!journey.attempt) {
+            journey.approval = null;
+            if (journey.status === "approved") journey.status = "review";
+          }
+        }
+        this.deliverReminder(journey);
+      }
       return journey;
     });
   }
@@ -158,6 +170,8 @@ export class FlightService {
         if (
           !current.offer ||
           current.offer.id !== action.offerId ||
+          !current.offerRevision ||
+          current.offerRevision !== action.offerRevision ||
           current.status === "unavailable"
         )
           throw new FlightError("Review the current offer before approving.");
@@ -167,6 +181,7 @@ export class FlightService {
           );
         current.approval = {
           offerId: current.offer.id,
+          offerRevision: current.offerRevision,
           approvedAt: this.now().toISOString(),
         };
         current.status = "approved";
@@ -211,9 +226,12 @@ export class FlightService {
     const supplier = this.supplierFactory(scenario);
     const timestamp = this.now().toISOString();
     const journey = this.repository.update(sessionId, (existing) => {
-      if (existing?.attempt?.status === "verification_pending")
+      // shortcut: one booking attempt per session; add durable history before allowing another request.
+      if (existing?.attempt)
         throw new FlightError(
-          "Verify the unresolved attempt before starting another request.",
+          existing.attempt.status === "verification_pending"
+            ? "Verify the unresolved attempt before starting another request."
+            : "This session already has a booking attempt. Its record and reminder must be retained.",
         );
       const next: FlightJourney = {
         id: randomUUID(),
@@ -222,6 +240,7 @@ export class FlightService {
         mode: supplier.mode,
         status: "review",
         offer: null,
+        offerRevision: null,
         approval: null,
         attempt: null,
         messages: [],
@@ -265,6 +284,7 @@ export class FlightService {
     );
     return this.change(sessionId, journey.id, (current) => {
       current.offer = offer;
+      current.offerRevision = offer ? randomUUID() : null;
       current.status = offer ? "review" : "unavailable";
       this.message(
         current,
@@ -284,7 +304,9 @@ export class FlightService {
     if (
       !journey.offer ||
       journey.status !== "approved" ||
-      journey.approval?.offerId !== journey.offer.id
+      journey.approval?.offerId !== journey.offer.id ||
+      !journey.offerRevision ||
+      journey.approval?.offerRevision !== journey.offerRevision
     )
       throw new FlightError("Approve the current offer before checkout.");
     if (!this.usable(journey.offer, journey))
@@ -317,16 +339,25 @@ export class FlightService {
         latest.status !== "approved" ||
         !latest.offer ||
         !latest.approval ||
+        latest.offerRevision !== journey.offerRevision ||
+        latest.approval.offerRevision !== latest.offerRevision ||
         offerApproval(latest.offer) !== offerApproval(journey.offer!) ||
         latest.approval.approvedAt !== journey.approval!.approvedAt
       )
         throw new FlightError(
           "Review and approve the current offer before checkout.",
         );
+      const changed =
+        refreshed.status === "available" &&
+        offerApproval(refreshed.offer) !== offerApproval(latest.offer);
+      if (refreshed.status === "available") {
+        latest.offer = refreshed.offer;
+        if (changed) latest.offerRevision = randomUUID();
+      }
       if (
         refreshed.status === "unavailable" ||
         !this.usable(refreshed.offer, latest) ||
-        !this.usable(latest.offer, latest)
+        !this.usable(journey.offer!, latest)
       ) {
         latest.status = "unavailable";
         latest.approval = null;
@@ -337,8 +368,7 @@ export class FlightService {
         );
         return;
       }
-      latest.offer = refreshed.offer;
-      if (offerApproval(refreshed.offer) !== offerApproval(journey.offer!)) {
+      if (changed) {
         latest.status = "review";
         latest.approval = null;
         this.message(
