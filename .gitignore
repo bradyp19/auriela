@@ -11,3 +11,8 @@ coverage/
 *.log
 .qa/
 .originkit/
+.superpowers/
+.data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
