@@ -189,6 +189,17 @@ describe("complete offers and fixture boundary", () => {
       "unavailable",
     );
   });
+  it("rejects checkout after departure even when the offer has not expired", async () => {
+    let instant = new Date("2026-10-13T16:59:00Z");
+    const adapter = fixture.createFixtureSupplier({ now: () => instant });
+    const { offers } = await adapter.search(request);
+    expect(offers[0].outbound[0].departureAt).toBe("2026-10-13T13:00:00-04:00");
+    expect(offers[0].expiresAt).toBe("2026-10-13T17:14:00.000Z");
+    instant = new Date("2026-10-13T17:01:00Z");
+    expect(await adapter.checkout(offers[0], "departed-attempt")).toMatchObject(
+      { mode: "fixture", status: "failed" },
+    );
+  });
   it("returns honest simulated completion and reconciles uncertain attempts after adapter restart", async () => {
     const { offers } = await supplier().search(request);
     const completion = await supplier().checkout(offers[0], "attempt-1");

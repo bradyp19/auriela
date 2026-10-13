@@ -219,7 +219,8 @@ export function createFixtureSupplier({
         throw new Error("A durable attempt identity is required");
       if (
         scenario === "unavailable" ||
-        Date.parse(offer.expiresAt) <= now().getTime()
+        Date.parse(offer.expiresAt) <= now().getTime() ||
+        Date.parse(offer.outbound[0].departureAt) <= now().getTime()
       )
         return {
           mode: "fixture",
