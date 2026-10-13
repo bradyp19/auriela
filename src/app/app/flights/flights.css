@@ -1,0 +1,290 @@
+.flight-journey-shell {
+  min-height: 100svh;
+  background: var(--soft);
+}
+.flight-journey-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px max(24px, calc((100vw - 1200px) / 2));
+  border-bottom: 1px solid var(--line);
+  background: white;
+}
+.flight-journey-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 45px 24px 70px;
+}
+.flight-mode-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid #d9ded9;
+  border-radius: 10px;
+  background: #f0f3ee;
+  margin-bottom: 18px;
+}
+.flight-mode-notice strong {
+  font-weight: 500;
+}
+.flight-mode-notice p {
+  font-size: 13px;
+}
+.flight-feedback {
+  padding: 4px 0 12px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.flight-feedback [role="alert"] {
+  color: #922d22;
+  margin-top: 7px;
+}
+.flight-journey-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 30px;
+  margin-top: 28px;
+}
+.flight-conversation,
+.flight-review,
+.flight-reminder {
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+  min-width: 0;
+}
+.flight-review-column {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.flight-review h2,
+.flight-reminder h2 {
+  margin: 8px 0 12px;
+}
+.flight-review > p,
+.flight-reminder > p {
+  margin: 10px 0;
+  font-size: 12px;
+  color: #636568;
+}
+.flight-messages {
+  list-style: none;
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  margin: 22px 0 28px;
+}
+.flight-message {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--soft);
+  max-width: 94%;
+  overflow-wrap: anywhere;
+}
+.flight-message.user {
+  margin-left: auto;
+  background: #ebedeb;
+}
+.flight-message strong {
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  font-weight: 500;
+}
+.flight-message p {
+  margin-top: 5px;
+  font-size: 12px;
+}
+.flight-journey-shell fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.flight-journey-shell legend {
+  font-size: 17px;
+  margin-bottom: 18px;
+}
+.flight-journey-shell fieldset p {
+  font-size: 11px;
+  color: var(--muted);
+}
+.flight-request-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.flight-journey-shell input,
+.flight-journey-shell select {
+  width: 100%;
+  font-size: 12px;
+  min-height: 42px;
+}
+.flight-journey-shell input[type="checkbox"] {
+  width: 16px;
+  min-height: 16px;
+}
+.flight-journey-shell label.checkbox-label {
+  align-items: flex-start;
+  line-height: 1.6;
+}
+.flight-journey-shell .checkbox-label input {
+  margin-top: 3px;
+}
+.flight-leg {
+  margin-top: 24px;
+}
+.flight-leg h3 {
+  font-size: 15px;
+}
+.flight-segment {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 10px;
+}
+.flight-segment > p {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.flight-segment-times {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+.flight-segment-times > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.flight-segment-times strong {
+  font-size: 23px;
+  font-weight: 500;
+}
+.flight-segment-times span,
+.flight-segment-times time {
+  font-size: 11px;
+}
+.flight-segment-times small {
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.flight-price {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  margin: 24px 0;
+}
+.flight-price > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  margin: 9px 0;
+}
+.flight-journey-shell dd {
+  margin: 0;
+}
+.flight-total {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  font-size: 18px !important;
+  font-weight: 500;
+}
+.flight-terms {
+  display: grid;
+  gap: 12px;
+  font-size: 12px;
+  margin: 18px 0;
+}
+.flight-terms dt {
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+.flight-terms dd {
+  color: #636568;
+  overflow-wrap: anywhere;
+}
+.flight-coverage {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.flight-simulation {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f0f3ee;
+  font-size: 12px !important;
+  color: #343e34 !important;
+  margin: 18px 0 !important;
+}
+.flight-outcome {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.flight-outcome h3 {
+  font-size: 16px;
+}
+.flight-outcome p {
+  margin: 10px 0;
+  font-size: 12px;
+}
+.flight-journey-shell .button {
+  justify-self: start;
+}
+@media (max-width: 850px) {
+  .flight-journey-grid {
+    grid-template-columns: 1fr;
+  }
+  .flight-journey-main {
+    max-width: 650px;
+    padding-top: 32px;
+  }
+  .flight-conversation,
+  .flight-review,
+  .flight-reminder {
+    padding: 22px;
+  }
+}
+@media (max-width: 450px) {
+  .flight-journey-header {
+    padding: 18px 16px;
+  }
+  .flight-journey-header .wordmark {
+    font-size: 25px;
+  }
+  .flight-journey-header .button {
+    font-size: 10px;
+    padding: 8px;
+  }
+  .flight-journey-main {
+    padding: 28px 16px 40px;
+  }
+  .flight-request-fields {
+    grid-template-columns: 1fr;
+  }
+  .flight-conversation,
+  .flight-review,
+  .flight-reminder {
+    padding: 18px;
+  }
+  .flight-segment-times {
+    gap: 8px;
+  }
+  .flight-segment-times strong {
+    font-size: 20px;
+  }
+  .flight-total {
+    font-size: 16px !important;
+  }
+  .flight-mode-notice {
+    padding: 15px;
+  }
+}

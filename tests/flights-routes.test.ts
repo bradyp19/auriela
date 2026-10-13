@@ -1,0 +1,93 @@
+import { describe, expect, it } from 'vitest';
+import { NextRequest } from 'next/server';
+import { randomUUID } from 'node:crypto';
+import { FlightRepository } from '@/flights/repository';
+import { FlightService } from '@/flights/service';
+import { createFixtureSupplier } from '@/flights/fixture';
+
+const http = await import('@/flights/http').catch(() => null);
+const origin = 'http://localhost:3000';
+function handlers() {
+  expect(http, 'Flight HTTP boundary exists').not.toBeNull();
+  return http!.createFlightHandlers({
+    get: async () => null,
+    act: async () => { throw new Error('secret-value must not escape'); },
+  }, () => false);
+}
+function post(body: string, headers: Record<string, string> = {}) {
+  return new NextRequest(`${origin}/api/flights`, {
+    method: 'POST', body,
+    headers: { origin, 'content-type': 'application/json', ...headers },
+  });
+}
+describe('flight HTTP trust boundary', () => {
+  it.each(['http://localhost:3000', 'http://127.0.0.1:3000'])('persists the real service journey at %s and prevents another browser from approving it', async (site) => {
+    expect(http).not.toBeNull();
+    const now = () => new Date('2026-10-13T16:00:00Z');
+    const repo = new FlightRepository(':memory:');
+    try {
+      const service = new FlightService(repo, (scenario) => createFixtureSupplier({ scenario, now }), now);
+      const routes = http!.createFlightHandlers(service, (id) => repo.load(id) !== null);
+      const send = (action: unknown, cookie = '') => routes.POST(new NextRequest(`${site}/api/flights`, { method: 'POST', body: JSON.stringify(action), headers: { origin: site, host: new URL(site).host, 'content-type': 'application/json', cookie } }));
+      const search = await send({ type: 'request', request: { origin: 'JFK', destination: 'LAX', departureDate: '2026-10-27', adults: 1, cabin: 'economy' } });
+      expect(search.status).toBe(200);
+      const { journey } = await search.json();
+      const cookie = search.headers.get('set-cookie')!.split(';')[0];
+      const approval = { type: 'approve', journeyId: journey.id, offerId: journey.offer.id, offerRevision: journey.offerRevision, accepted: true };
+      const intruder = await send(approval);
+      expect(intruder.status).toBe(404);
+      expect(JSON.stringify(await intruder.json())).not.toContain(journey.offer.id);
+      const own = await send(approval, cookie);
+      expect(own.status).toBe(200);
+      expect((await own.json()).journey.status).toBe('approved');
+    } finally { repo.close(); }
+  });
+  it('issues a private no-store session cookie rather than trusting a forged cookie', async () => {
+    const forged = randomUUID();
+    const response = await handlers().GET(new NextRequest(`${origin}/api/flights`, { headers: { cookie: `aurelia-flight-session=${forged}` } }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ journey: null, mode: 'fixture' });
+    expect(response.headers.get('cache-control')).toContain('no-store');
+    const cookie = response.headers.get('set-cookie')!;
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=strict');
+    expect(cookie).not.toContain(forged);
+  });
+  it('uses secure cookies for HTTPS and reuses a known session', async () => {
+    expect(http).not.toBeNull();
+    const known = randomUUID();
+    const seen: string[] = [];
+    const routes = http!.createFlightHandlers({ get: async (session) => { seen.push(session); return null; }, act: async () => { throw Error('unused'); } }, (session) => session === known);
+    const response = await routes.GET(new NextRequest('https://localhost/api/flights', { headers: { cookie: `aurelia-flight-session=${known}` } }));
+    expect(seen).toEqual([known]);
+    expect(response.headers.get('set-cookie')).toContain('Secure');
+  });
+  it('rejects cross-origin and missing-origin mutations', async () => {
+    expect((await handlers().POST(post('{}', { origin: 'https://evil.example' }))).status).toBe(403);
+    const request = post('{}');
+    request.headers.delete('origin');
+    expect((await handlers().POST(request)).status).toBe(403);
+  });
+  it('rejects malformed JSON, wrong media types and oversized bodies', async () => {
+    expect((await handlers().POST(post('{bad'))).status).toBe(400);
+    expect((await handlers().POST(post('{}', { 'content-type': 'text/plain' }))).status).toBe(415);
+    expect((await handlers().POST(post(' '.repeat(17000)))).status).toBe(413);
+  });
+  it('rejects forged prices, status, session identifiers and nonexplicit approval', async () => {
+    for (const action of [
+      { type: 'checkout', journeyId: 'j', total: 1 },
+      { type: 'verify', journeyId: 'j', status: 'verified_complete' },
+      { type: 'verify', journeyId: 'j', sessionId: 'victim' },
+      { type: 'approve', journeyId: 'j', offerId: 'o', offerRevision: 'r', accepted: false },
+      { type: 'approve', journeyId: 'j', offerId: 'o', accepted: true },
+      { type: 'approve', journeyId: 'j', offerId: 'o', offerRevision: false, accepted: true },
+    ]) expect((await handlers().POST(post(JSON.stringify(action)))).status).toBe(400);
+  });
+  it('redacts unexpected server failures and returns a retryable error', async () => {
+    const response = await handlers().POST(post(JSON.stringify({ type: 'verify', journeyId: 'j' })));
+    expect(response.status).toBe(503);
+    const data = await response.json();
+    expect(data.error).toBeTruthy();
+    expect(JSON.stringify(data)).not.toContain('secret-value');
+  });
+});
