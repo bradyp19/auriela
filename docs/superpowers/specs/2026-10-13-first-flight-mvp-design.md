@@ -1,6 +1,6 @@
 # First connected flight MVP — proposed design
 
-Status: awaiting written-spec approval. This document describes the first increment, not implemented capabilities.
+Status: approved October 13, 2026. The connected fixture increment is implemented; real supplier access and checkout remain unverified. See the implementation evidence for actual checks and limits.
 
 ## Outcome and agreed limits
 
@@ -27,6 +27,8 @@ Collect origin/destination airports, departure date, optional return date and ca
 Show complete outbound/return segments, local times/time zones, total mandatory price breakdown, baggage information supplied by the provider, cancellation/change restrictions and provider mode. Choose the lowest total among matching returned offers; make searched inventory coverage explicit. Unknown restrictions are displayed as unknown and must prevent purchase when necessary approval terms are missing.
 
 Approval binds to the server's immutable snapshot of itinerary, total and terms. Recheck price/availability before checkout. Any material change returns to review and needs fresh approval. Expiry and unavailable offers prevent checkout. The client cannot supply authoritative prices or supplier status.
+
+The implemented approval action also requires the exact server-issued `offerRevision`, separate from the opaque supplier ID, to reject stale approvals when a supplier reuses its ID. This private first slice permits one booking attempt per browser session; another search is blocked after any attempt to retain booking evidence and accepted reminders. Multiple booked journeys require durable history before that limit is lifted.
 
 Create and commit a durable attempt identity before contacting a supplier. Concurrent/repeated submissions must reuse that attempt. A timeout or ambiguous outcome becomes `verification_pending`; verify the existing attempt before permitting another purchase. A page redirect or payment success alone never confirms a booking. Require supplier order retrieval with documented completed/ticket evidence and references. Preserve pending/failed/verified states distinctly.
 
